@@ -10,7 +10,7 @@ function callAPI(url, method, body, accessToken, callback) {
 
   httpRequest.onreadystatechange = function() {
     if (httpRequest.readyState == 4) {
-      //console.log(httpRequest.responseText);
+      console.log(httpRequest.responseText);
       callback(httpRequest.responseText);
     }
   }
@@ -27,6 +27,15 @@ function callAPI(url, method, body, accessToken, callback) {
 }
 
 /* All support JS goes here */
+function sendEmailOTP(userId) {
+  console.log("sendEmailOTP()");
+  let body = {
+    "userId": userId
+  }
+  callAPI('/send-email-challenge', "POST", body, null, (json) => {
+    console.log(JSON.parse(json));
+  });
+}
 
 /* Challenge 2: Protect The API Calls */
 function handlePublicAPICall() {
@@ -51,8 +60,8 @@ function handleAccessAPICall() {
   signIn.authClient.tokenManager.get("accessToken")
     .then(function(token) {
       callAPI('/access', "GET", null, token.accessToken, (json) => {
-          $("#apiResultsDisplay").html(JSON.stringify(JSON.parse(json), null, 4));
-        });
+        $("#apiResultsDisplay").html(JSON.stringify(JSON.parse(json), null, 4));
+      });
     });
 }
 
@@ -69,7 +78,6 @@ function checkAndShowIdToken() {
           //console.log(token);
           $("#idTokenDisplay").html(JSON.stringify(jwt_decode(token.idToken), null, 4));
           showAccessToken();
-          // getOktaApiToken();
           showLoggedInStuff();
           $("#showIdTokenTabBtn").addClass("active").trigger("click");
         })
@@ -126,7 +134,6 @@ function showLoggedInStuff() {
       if (role == "ADMIN") {
         getOktaApiToken();
         $("#showUserListTabBtn").show();
-        loadUserList();
       }
     })
     .catch(function(err) {
@@ -171,8 +178,12 @@ function openTokenTab(evt, tabName) {
 
   // Show the current tab, and add an "active" class to the button that opened the tab
   $(`#${tabName}`).show();
-  // evt.currentTarget.className += " active";
-  // $(evt.currentTarget).addClass("active");
+  $(evt.currentTarget).addClass("active");
+
+  // if it's the user management tab, refresh the user list
+  if (tabName == "userListTab") {
+    loadUserList();
+  }
 }
 
 

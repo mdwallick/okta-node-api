@@ -7,9 +7,348 @@ const oktaApiAuthClient = new OktaAuth({
   }
 });
 
-function callOktaAPI(url, method, body, accessToken, callback) {
-  console.log("callOktaAPI()", url);
+const httpStatus = {
+  OK: 200,
+  CREATED: 201,
+  ACCEPTED: 202,
+  NO_CONTENT: 204,
+  BAD_REQUEST: 400,
+  UNAUTHORIZED: 401,
+  FORBIDDEN: 403,
+  NOT_FOUND: 404,
+  METHOD_NOT_ALLOWED: 405,
+  INTERNAL_SERVER_ERROR: 500,
+  NOT_IMPLEMENTED: 501,
+  BAD_GATEWAY: 502,
+  SERVICE_UNAVAILABLE: 503
+};
 
+///////////////////////////////////////////////////
+// Functions for calling Okta APIS
+///////////////////////////////////////////////////
+function getUsers(callback) {
+  callOktaAPI("/users", "GET", null, (response) => {
+    let sorted = response.slice();
+    sorted.sort((a, b) => (a.profile.firstName > b.profile.firstName) ? 1 : -1);
+    callback(sorted);
+    hideLoader();
+  });
+}
+
+function getUser() {
+  let user_id = $(this).data('id');
+  console.log("getUser", user_id);
+  showLoader();
+  callOktaAPI(`/users/${user_id}`, "GET", null, (response) => {
+    marhsalToUserForm(response);
+  });
+}
+
+function createUser() {
+  console.log("createUser()");
+  hideModal();
+  showLoader();
+
+  // get the group ID by name
+  let group_name = sessionStorage.getItem("userGroup");
+  getGroupByName(group_name, (group_id) => {
+    let userProfile = {
+      "profile": {
+        "login": $("#email_addy").val(),
+        "firstName": $("#first_name").val(),
+        "lastName": $("#last_name").val(),
+        "email": $("#email_addy").val()
+      },
+      "groupIds": [group_id]
+    }
+
+    callOktaAPI("/users?activate=false", "POST", userProfile, (response) => {
+      console.log("Created user", response);
+      loadUserList();
+      alert("User created!");
+      hideLoader();
+    });
+  });
+}
+
+function updateUser() {
+  let user_id = $('#userId').val();
+  console.log("updateUser()", user_id);
+  hideModal();
+  showLoader();
+  let userProfile = {
+    "profile": {
+      "login": $("#email").val(),
+      "firstName": $("#firstName").val(),
+      "lastName": $("#lastName").val(),
+      "email": $("#email").val(),
+      "mobilePhone": $("#phone").val()
+    }
+  }
+
+  callOktaAPI(`/users/${user_id}`, "POST", userProfile, (response) => {
+    console.log("Updted user", response);
+    loadUserList();
+    alert("User updated!");
+    hideLoader();
+  });
+}
+
+// this isn't used anywhere just yet
+function changePassword() {
+  console.log("changePassword()");
+  let user_id = sessionStorage.getItem("userId");
+  let password = prompt("Enter your new password");
+  if (password) {
+    let userProfile = {
+      "profile": {},
+      "credentials": {
+        "password": { "value": password }
+      }
+    }
+
+    showLoader();
+    callOktaAPI(`/users/${user_id}`, "POST", userProfile, (response) => {
+      console.log("Password changed for user", response);
+      alert("User password changed!");
+      hideLoader();
+    });
+  }
+}
+
+function activateUser() {
+  let user_id = $(this).data('id');
+  console.log("activateUser()", user_id);
+  showLoader();
+  callOktaAPI(`/users/${user_id}/lifecycle/activate?sendEmail=true`, "POST", null, (response) => {
+    console.log("Activated user", response);
+    loadUserList();
+    hideLoader();
+  });
+}
+
+function resetPassword() {
+  let user_id = $(this).data('id');
+  console.log("resetPassword()", user_id);
+  showLoader();
+  callOktaAPI(`/users/${user_id}/lifecycle/reset_password?sendEmail=true`, "POST", null, (response) => {
+    console.log(response);
+    loadUserList();
+    hideLoader();
+  });
+}
+
+function suspendUser() {
+  let user_id = $(this).data('id');
+  console.log("suspendUser()", user_id);
+  showLoader();
+  callOktaAPI(`/users/${user_id}/lifecycle/suspend`, "POST", null, (response) => {
+    console.log(response);
+    loadUserList();
+    hideLoader();
+  });
+}
+
+function unsuspendUser() {
+  let user_id = $(this).data('id');
+  console.log("unsuspendUser()", user_id);
+  showLoader();
+  callOktaAPI(`/users/${user_id}/lifecycle/unsuspend`, "POST", null, (response) => {
+    console.log(response);
+    loadUserList();
+    hideLoader();
+  });
+}
+
+function deactivateUser() {
+  let user_id = $(this).data('id');
+  console.log("deactivateUser()", user_id);
+
+  var msg = 'This operation cannot be undone.\n\nDo you want to continue?';
+  if (confirm(msg)) {
+    showLoader();
+    callOktaAPI(`/users/${user_id}/lifecycle/deactivate?sendEmail=false`, "POST", null, (response) => {
+      console.log(response);
+      loadUserList();
+      hideLoader();
+    });
+  }
+}
+
+function deleteUser() {
+  let user_id = $(this).data('id');
+  console.log("deleteUser()", user_id);
+  showLoader();
+  callOktaAPI(`/users/${user_id}?sendEmail=false`, "DELETE", null, (response) => {
+    console.log(response);
+    loadUserList();
+    hideLoader();
+  });
+}
+
+/////////////////////////
+// group functions
+/////////////////////////
+
+// this isn't used anywhere just yet
+function getGroupList(callback) {
+  console.log("getGroupList()");
+  callOktaAPI('/groups', "GET", null, (response) => {
+    callback(response);
+  });
+}
+
+function getGroupByName(groupName, callback) {
+  console.log("getGroupByName()");
+  callOktaAPI(`/groups?q=${groupName}`, "GET", null, (response) => {
+    console.log(response);
+    let groupId = response[0].id;
+    console.log("Got group ID for name:", groupName, groupId);
+    callback(groupId);
+  });
+}
+
+/////////////////////////
+// UI helpers
+/////////////////////////
+function loadUserList() {
+  console.log("loadUserList()");
+  $('#userListTable').empty()
+  showLoader();
+
+  getUsers((userList) => {
+    marshalToUserList(userList);
+    hideLoader();
+  });
+}
+
+function marhsalToUserForm(userProfile) {
+  console.log("marhsalToUserForm()");
+  $("#userId").val(userProfile.id);
+  $("#username").val(userProfile.profile.login);
+  $("#firstName").val(userProfile.profile.firstName);
+  $("#lastName").val(userProfile.profile.lastName);
+  $("#email").val(userProfile.profile.email);
+  $("#phone").val(userProfile.profile.mobilePhone);
+  hideLoader();
+  showModal('editUserModal');
+}
+
+function marshalToUserList(userList) {
+  console.log("marshalToUserList()");
+  //console.log("userList", userList);
+  buildHtmlTable(userList, '#userListTable');
+}
+
+// Builds the HTML Table out of data.
+function buildHtmlTable(data, selector) {
+  addAllColumnHeaders(selector);
+  var currentUserId = sessionStorage.getItem("userId");
+
+  for (var i = 0; i < data.length; i++) {
+    //console.log("data", data[i]);
+    var row$ = $('<tr/>');
+    var user_id = data[i].id;
+    var user_status = data[i].status;
+    var full_name = `${data[i].profile.firstName} ${data[i].profile.lastName}`;
+    var email = data[i].profile.email;
+    var phone = data[i].profile.mobilePhone;
+
+    var edit_link = $('<a/>').attr('href', '#').attr('data-id', user_id).text(full_name).click(getUser);
+
+    var activate_button = $('<button/>')
+      .attr('class', 'activate')
+      .attr('data-id', user_id)
+      .text('Activate').click(activateUser);
+
+    var reset_password_button = $('<button/>')
+      .attr('class', 'resetpw')
+      .attr('data-id', user_id)
+      .text('Reset Password')
+      .click(resetPassword);
+
+    var suspend_button = $('<button/>')
+      .attr('class', 'suspend')
+      .attr('data-id', user_id)
+      .text('Suspend')
+      .click(suspendUser);
+
+    var unsuspend_button = $('<button/>')
+      .attr('class', 'unsuspend')
+      .attr('data-id', user_id)
+      .text('UnSuspend').click(unsuspendUser);
+
+    var deactivate_button = $('<button/>')
+      .attr('class', 'deactivate')
+      .attr('data-id', user_id)
+      .text('Deactivate')
+      .click(deactivateUser);
+
+    var delete_button = $('<button/>')
+      .attr('class', 'delete')
+      .attr('data-id', user_id)
+      .text('Delete')
+      .click(deleteUser);
+
+    row$.append($('<td/>').html(edit_link));
+    row$.append($('<td/>').html(email));
+    row$.append($('<td/>').html(phone));
+    row$.append($('<td/>').html(user_status));
+
+    cell$ = $("<td/>");
+    if (currentUserId != user_id) {
+      switch (user_status) {
+        case "ACTIVE":
+          cell$.append(reset_password_button).append(suspend_button).append(deactivate_button);
+          break;
+        case "SUSPENDED":
+          cell$.append(unsuspend_button).append(deactivate_button);
+          break;
+        case "STAGED":
+          cell$.append(activate_button).append(deactivate_button);
+          break;
+        case "DEPROVISIONED":
+          cell$.append(delete_button);
+          break;
+      }
+    } else {
+      cell$.append(reset_password_button);
+    }
+    row$.append(cell$);
+    $(selector).append(row$);
+  }
+}
+
+// Adds a header row to the table and returns the set of columns.
+// Need to do union of keys from all records as some records may not contain
+// all records.
+function addAllColumnHeaders(selector) {
+  var headerTr$ = $('<tr/>');
+  headerTr$.append($('<th/>').html('Name'));
+  headerTr$.append($('<th/>').html('Email'));
+  headerTr$.append($('<th/>').html('Phone'));
+  headerTr$.append($('<th/>').html('Status'));
+  headerTr$.append($('<th/>').html('Actions'));
+  $(selector).append(headerTr$);
+}
+
+///////////////////////////////////////////////////
+// API helpers
+///////////////////////////////////////////////////
+function callOktaAPI(url, method, body, callback) {
+  console.log("callOktaAPI()");
+  httpCaller(url, method, body, (response, status) => {
+    if (status == httpStatus.OK || status == httpStatus.NO_CONTENT) {
+      let res = handleResponse(response, status);
+      callback(res);
+    } else {
+      handleError(response, status);
+    }
+  });
+}
+
+function httpCaller(url, method, body, callback) {
+  console.log("httpCaller()", url);
   let fullURL = oktaApiServicesBaseURL + url;
   console.log("fullURL", fullURL);
   console.log("body", body);
@@ -19,8 +358,8 @@ function callOktaAPI(url, method, body, accessToken, callback) {
 
   httpRequest.onreadystatechange = function() {
     if (httpRequest.readyState == 4) {
-      //console.log(httpRequest.responseText);
-      callback(httpRequest.responseText);
+      //console.log("responseText", httpRequest.responseText);
+      callback(httpRequest.responseText, httpRequest.status);
     }
   }
 
@@ -28,11 +367,47 @@ function callOktaAPI(url, method, body, accessToken, callback) {
   httpRequest.setRequestHeader("Content-Type", "application/json");
   httpRequest.responseType = "text";
 
-  if (accessToken) {
-    httpRequest.setRequestHeader("Authorization", "Bearer " + accessToken);
-  }
+  oktaApiAuthClient.tokenManager.get('accessToken').then(function(token) {
+    if (token && !oktaApiAuthClient.tokenManager.hasExpired(token)) {
+      // Token is valid
+      httpRequest.setRequestHeader("Authorization", `Bearer ${token.accessToken}`);
+      httpRequest.send(JSON.stringify(body));
+    } else {
+      console.log("No valid Okta API access token in storage");
+    }
 
-  httpRequest.send(JSON.stringify(body));
+  });
+}
+
+function handleResponse(response, status) {
+  try {
+    // try to parse the response into JSON
+    if (status == httpStatus.OK) {
+      let res = JSON.parse(response);
+      return res;
+    } else {
+      handleError(response, status);
+    }
+  } catch (err) {
+    console.log("Response is not JSON. Status code:");
+    console.log(response);
+  }
+}
+
+function handleError(response, status) {
+  try {
+    // try to parse the response into JSON
+    let res = JSON.parse(response);
+    console.log("Error", status);
+    console.log(res);
+    var msg = `Error code: ${res.errorCode}\nSummary: ${res.errorSummary}`;
+    alert(msg);
+  } catch (err) {
+    console.log("Response is not JSON. Status code:", status);
+    console.log(response);
+  } finally {
+    hideLoader();
+  }
 }
 
 function getOktaApiToken() {
@@ -57,387 +432,4 @@ function getOktaApiToken() {
           })
       }
     });
-}
-
-function getGroupList() {
-  oktaApiAuthClient.tokenManager.get('accessToken').then(function(token) {
-    if (token && !oktaApiAuthClient.tokenManager.hasExpired(token)) {
-      // Token is valid
-      callOktaAPI(`/groups`, "GET", null, token.accessToken, (groupResponse) => {
-        //console.log(groupResponse);
-        let groups = JSON.parse(groupResponse);
-        console.log(groups);
-        return groups;
-      });
-    }
-  });
-}
-
-function getGroupByName(groupName) {
-  oktaApiAuthClient.tokenManager.get('accessToken').then(function(token) {
-    if (token && !oktaApiAuthClient.tokenManager.hasExpired(token)) {
-      // Token is valid
-      callOktaAPI(`/groups?q=${groupName}`, "GET", null, token.accessToken, (groupResponse) => {
-        //console.log(groupResponse);
-        let groups = JSON.parse(groupResponse);
-        console.log(groups);
-        return groups[0].id;
-      });
-    }
-  });
-}
-
-function createUser() {
-  console.log("createUser()");
-  hideModal();
-  showLoader();
-
-  oktaApiAuthClient.tokenManager.get('accessToken')
-    .then(function(token) {
-      if (token && !oktaApiAuthClient.tokenManager.hasExpired(token)) {
-        // Token is valid
-
-        // get the group ID by name
-        let userProfile = {
-          "profile": {
-            "login": $("#email_addy").val(),
-            "firstName": $("#first_name").val(),
-            "lastName": $("#last_name").val(),
-            "email": $("#email_addy").val()
-          },
-          "groupIds": [
-            // FIXME make this not be hard coded
-            "00gi9cepczyex44cK696"
-          ]
-        }
-
-        callOktaAPI("/users?activate=false", "POST", userProfile, token.accessToken, (userResponse) => {
-          //console.log("userResponse", userResponse);
-          let userProfile = JSON.parse(userResponse);
-          if (userProfile.errorSummary) {
-            alert(userProfile.errorSummary);
-            hideLoader();
-          } else {
-            loadUserList();
-            hideLoader();
-            alert("User Create Completed");
-          }
-        });
-      }
-    });
-}
-
-function updateUser() {
-  let user_id = $('#userId').val();
-  console.log("updateUser()", user_id);
-  hideModal();
-  showLoader();
-  let userProfile = {
-    "profile": {
-      "login": $("#email_addy").val(),
-      "firstName": $("#first_name").val(),
-      "lastName": $("#last_name").val(),
-      "email": $("#email_addy").val(),
-      "mobilePhone": $("#phone").val()
-    }
-  }
-
-  oktaApiAuthClient.tokenManager.get('accessToken')
-    .then(function(token) {
-      if (token && !oktaApiAuthClient.tokenManager.hasExpired(token)) {
-        // Token is valid
-        callOktaAPI(`/users/${user_id}`, "POST", userProfile, token.accessToken, (userResponse) => {
-          //console.log("userResponse", userResponse);
-          let userProfile = JSON.parse(userResponse);
-          if (userResponse.errorSummary) {
-            alert(userProfile.errorSummary);
-          } else {
-            loadUserList();
-            hideLoader();
-            alert("User Update Completed");
-          }
-        });
-      } else {
-        // token has expired
-
-      }
-    });
-}
-
-function changePassword() {
-  console.log("changePassword()");
-  let password = prompt("Enter your new password");
-  if (password) {
-    let userProfile = {
-      "profile": {},
-      "credentials": {
-        "password": { "value": password }
-      }
-    }
-
-    showLoader();
-    oktaApiAuthClient.tokenManager.get('accessToken')
-      .then(function(token) {
-        if (token && !oktaApiAuthClient.tokenManager.hasExpired(token)) {
-          // Token is valid
-          callOktaAPI("/users", "POST", userProfile, token.accessToken, (userResponse) => {
-            //console.log("userResponse", userResponse);
-            let userProfile = JSON.parse(userResponse);
-            //console.log("userProfile", userProfile);
-            marhsalToUserForm(userProfile);
-            hideLoader();
-            alert("User Password Update Completed");
-          });
-        }
-      });
-  }
-}
-
-function loadUserList() {
-  console.log("loadUserList()");
-  $('#userListTable').empty()
-  showLoader();
-
-  oktaApiAuthClient.tokenManager.get('accessToken')
-    .then(function(token) {
-      //console.log("Got API access token");
-      //console.log(token.accessToken);
-      if (token && !oktaApiAuthClient.tokenManager.hasExpired(token)) {
-        // Token is valid
-        callOktaAPI("/users", "GET", null, token.accessToken, (userResponse) => {
-          //console.log("userResponse", userResponse);
-          let userList = JSON.parse(userResponse);
-          marshalToUserList(userList);
-          hideLoader();
-        });
-      } else {
-        console.log("No valid Okta API access token in storage");
-        hideLoader();
-      }
-    }).catch(function(err) {
-      console.log("Error", err);
-      hideLoader();
-    });
-}
-
-function getUser() {
-  let user_id = $(this).data('id');
-  console.log("getUser", user_id);
-  showLoader();
-
-  oktaApiAuthClient.tokenManager.get('accessToken')
-    .then(function(token) {
-      if (token && !oktaApiAuthClient.tokenManager.hasExpired(token)) {
-        // Token is valid
-        callOktaAPI(`/users/${user_id}`, "GET", null, token.accessToken, (userResponse) => {
-          //console.log("userResponse", userResponse);
-          let userProfile = JSON.parse(userResponse);
-          marhsalToUserForm(userProfile);
-          showModal('editUserModal');
-          hideLoader();
-        });
-      } else {
-        hideLoader();
-      }
-    }).catch(function(err) {
-      console.log("Error", err);
-      hideLoader();
-    });
-}
-
-function activateUser() {
-  let user_id = $(this).data('id');
-  console.log("activateUser()", user_id);
-  showLoader();
-  oktaApiAuthClient.tokenManager.get('accessToken')
-    .then(function(token) {
-      if (token && !oktaApiAuthClient.tokenManager.hasExpired(token)) {
-        // Token is valid
-        callOktaAPI(`/users/${user_id}/lifecycle/activate`, "POST", null, token.accessToken, (userResponse) => {
-          console.log("userResponse", userResponse);
-          loadUserList();
-          hideLoader();
-        });
-      } else {
-        hideLoader();
-      }
-    }).catch(function(err) {
-      console.log("Error", err);
-      hideLoader();
-    });
-}
-
-function resetPassword() {
-  let user_id = $(this).data('id');
-  console.log("resetPassword()", user_id);
-  showLoader();
-  oktaApiAuthClient.tokenManager.get('accessToken')
-    .then(function(token) {
-      if (token && !oktaApiAuthClient.tokenManager.hasExpired(token)) {
-        // Token is valid
-        callOktaAPI(`/users/${user_id}/lifecycle/reset_password`, "POST", null, token.accessToken, (userResponse) => {
-          console.log("userResponse", userResponse);
-          loadUserList();
-          hideLoader();
-        });
-      } else {
-        hideLoader();
-      }
-    }).catch(function(err) {
-      console.log("Error", err);
-      hideLoader();
-    });
-}
-
-function suspendUser() {
-  let user_id = $(this).data('id');
-  console.log("suspendUser()", user_id);
-  showLoader();
-  oktaApiAuthClient.tokenManager.get('accessToken')
-    .then(function(token) {
-      if (token && !oktaApiAuthClient.tokenManager.hasExpired(token)) {
-        // Token is valid
-        callOktaAPI(`/users/${user_id}/lifecycle/suspend`, "POST", null, token.accessToken, (userResponse) => {
-          console.log("userResponse", userResponse);
-          loadUserList();
-          hideLoader();
-        });
-      } else {
-        hideLoader();
-      }
-    }).catch(function(err) {
-      console.log("Error", err);
-      hideLoader();
-    });
-}
-
-function unsuspendUser() {
-  let user_id = $(this).data('id');
-  console.log("unsuspendUser()", user_id);
-  showLoader();
-  oktaApiAuthClient.tokenManager.get('accessToken')
-    .then(function(token) {
-      if (token && !oktaApiAuthClient.tokenManager.hasExpired(token)) {
-        // Token is valid
-        callOktaAPI(`/users/${user_id}/lifecycle/unsuspend`, "POST", null, token.accessToken, (userResponse) => {
-          console.log("userResponse", userResponse);
-          loadUserList();
-          hideLoader();
-        });
-      } else {
-        hideLoader();
-      }
-    }).catch(function(err) {
-      console.log("Error", err);
-      hideLoader();
-    });
-}
-
-function deleteUser() {
-  let user_id = $(this).data('id');
-  console.log("deleteUser()", user_id);
-  showLoader();
-  oktaApiAuthClient.tokenManager.get('accessToken')
-    .then(function(token) {
-      if (token && !oktaApiAuthClient.tokenManager.hasExpired(token)) {
-        // Token is valid
-        callOktaAPI(`/users/${user_id}`, "DELETE", null, token.accessToken, (userResponse) => {
-          console.log("userResponse", userResponse);
-          loadUserList();
-          hideLoader();
-        });
-      } else {
-        hideLoader();
-      }
-    }).catch(function(err) {
-      console.log("Error", err);
-      hideLoader();
-    });
-}
-
-function marhsalToUserForm(userProfile) {
-  console.log("marhsalToUserForm()");
-
-  if (userProfile.status == "failed") {
-    //alert(userProfile.message);
-    console.log("Failed!", userProfile.message);
-  } else if (userProfile.errorSummary) {
-    //alert(userProfile.errorSummary);
-    console.log("Failed!", userProfile.errorSummary);
-  } else {
-    $("#userId").val(userProfile.id);
-    $("#username").val(userProfile.profile.login);
-    $("#firstName").val(userProfile.profile.firstName);
-    $("#lastName").val(userProfile.profile.lastName);
-    $("#email").val(userProfile.profile.email);
-    $("#phone").val(userProfile.profile.mobilePhone);
-  }
-}
-
-function marshalToUserList(userList) {
-  console.log("marshalToUserList()");
-  //console.log("userList", userList);
-  buildHtmlTable(userList, '#userListTable');
-}
-
-// Builds the HTML Table out of data.
-function buildHtmlTable(data, selector) {
-  addAllColumnHeaders(data, selector);
-  var currentUserId = $('#currentUserId').val();
-
-  for (var i = 0; i < data.length; i++) {
-    //console.log("data", data[i]);
-    var row$ = $('<tr/>');
-    var user_id = data[i].id;
-    var user_status = data[i].status;
-    var full_name = data[i].profile.firstName + ' ' + data[i].profile.lastName;
-    var email = data[i].profile.email;
-    var phone = data[i].profile.mobilePhone;
-
-    var edit_link = $('<a/>').attr('href', '#').attr('data-id', user_id).text(full_name).click(getUser);
-    var activate_button = $('<button/>').attr('class', 'activate').attr('data-id', user_id).text('Activate').click(activateUser);
-    var reset_password_button = $('<button/>').attr('class', 'resetpw').attr('data-id', user_id).text('Reset Password').click(resetPassword);
-    var suspend_button = $('<button/>').attr('class', 'suspend').attr('data-id', user_id).text('Suspend').click(suspendUser);
-    var unsuspend_button = $('<button/>').attr('class', 'unsuspend').attr('data-id', user_id).text('UnSuspend').click(unsuspendUser);
-    // var delete_button = $('<button/>').attr('class', 'delete').attr('data-id', user_id).text('Delete').click(deleteUser);
-
-    row$.append($('<td/>').html(edit_link));
-    row$.append($('<td/>').html(email));
-    row$.append($('<td/>').html(phone));
-    row$.append($('<td/>').html(user_status));
-
-    cell$ = $("<td/>");
-    if (currentUserId != user_id) {
-      switch (user_status) {
-        case "ACTIVE":
-          cell$.append(reset_password_button).append(suspend_button);
-          break;
-        case "SUSPENDED":
-          cell$.append(unsuspend_button);
-          break;
-        case "STAGED":
-          cell$.append(activate_button);
-          break;
-      }
-    } else {
-      cell$.append(reset_password_button);
-    }
-    row$.append(cell$);
-    $(selector).append(row$);
-  }
-}
-
-// Adds a header row to the table and returns the set of columns.
-// Need to do union of keys from all records as some records may not contain
-// all records.
-function addAllColumnHeaders(data, selector) {
-  var columnSet = [];
-  var headerTr$ = $('<tr/>');
-  headerTr$.append($('<th/>').html('Name'));
-  headerTr$.append($('<th/>').html('Email'));
-  headerTr$.append($('<th/>').html('Phone'));
-  headerTr$.append($('<th/>').html('Status'));
-  headerTr$.append($('<th/>').html('Actions'));
-  $(selector).append(headerTr$);
-  //return columnSet;
 }
