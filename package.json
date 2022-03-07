@@ -9,10 +9,12 @@
   },
   "dependencies": {
     "@okta/jwt-verifier": "2.3.0",
+    "@sendgrid/mail": "^7.6.1",
     "cors": "^2.8.5",
     "express": "^4.17.3",
     "jsonwebtoken": "^8.5.1",
     "query-string": "^7.1.1",
+    "totp-generator": "^0.0.13",
     "uuid": "^8.3.2",
     "xhr2": "^0.2.1"
   },
