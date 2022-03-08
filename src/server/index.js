@@ -7,7 +7,6 @@ const XMLHttpRequest = require("xhr2").XMLHttpRequest;
 const config = require('../../config.js');
 const endpointHandlers = require('./endpointHandlers.js');
 const webHookHandlers = require('./webHookHandlers.js');
-const { text } = require('express');
 
 const app = express();
 app.use(cors());
@@ -37,7 +36,6 @@ app.post('/api/access-hook', (req, res) => {
 
 app.post('/api/send-email-challenge', (req, res) => {
   console.log("/api/send-email-challenge");
-  //console.log("RAW request", req.body);
   res.setHeader('Content-Type', 'application/json');
 
   let userId = req.body.userId;
@@ -59,21 +57,20 @@ const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`funAuth app listening on port ${port}!`));
 
 //////////////////////
-// helper functions
+// helper functions //
 //////////////////////
-
 function sendEmail(user_name, shared_secret, callback) {
   const mailer = require('@sendgrid/mail');
   mailer.setApiKey(config.SENDGRID_API_KEY);
 
-  let totp = generateOTP(shared_secret);
+  let token = generateOTP(shared_secret);
   let msg = {
     from: `noreply@${config.SENDGRID_FROM_DOMAIN}`,
     template_id: config.SENDGRID_TEMPLATE_ID,
     personalizations: [{
       to: { email: user_name },
       dynamic_template_data: {
-        verificationToken: totp
+        verificationToken: token
       }
     }]
   };
@@ -92,7 +89,6 @@ function generateOTP(shared_secret) {
   let totp = require("totp-generator");
   let params = { algorithm: "SHA-512", period: 30 };
   let token = totp(shared_secret, params);
-  console.log("Generated OTP", token);
   return token;
 }
 
@@ -112,7 +108,7 @@ const OKTA_OAUTH_HEADERS = [
 
 function getUser(userId, callback) {
   console.log("getUser()");
-  let okta_url = `${process.env.OKTA_ORG_URL}`;
+  let okta_url = process.env.OKTA_ORG_URL;
   let url = `${okta_url}/api/v1/users/${userId}`;
   callOktaAPI(url, "GET", null, callback);
 }
@@ -121,7 +117,6 @@ function callOktaAPI(url, method, body, callback) {
   console.log("callOktaAPI()", url);
   let scopes = 'okta.users.read okta.apps.read';
   getOktaAPIOAuthToken(scopes, (oAuthResponse) => {
-    //console.log(oAuthResponse);
     OKTA_API_HEADERS[2].value = `Bearer ${oAuthResponse}`;
     httpCaller(url, method, body, OKTA_API_HEADERS, callback);
   });
@@ -131,18 +126,7 @@ function callOktaAPI(url, method, body, callback) {
 // no need to always get a token for every request
 function getOktaAPIOAuthToken(scopes, callBack) {
   console.log("getOktaAPIOAuthToken");
-
-  let signedJwtPayload = {
-    "aud": `${process.env.OKTA_ORG_URL}/oauth2/v1/token`,
-    "iss": process.env.OKTA_API_CLIENT_ID,
-    "sub": process.env.OKTA_API_CLIENT_ID,
-    "exp": Math.floor(Date.now() / 1000) + (60 * 60)
-  }
-
-  let privateKey = process.env.JWT_PRIVATE_KEY.replace(/\\n/g, '\n');
-  //console.log("privateKey", privateKey);
-
-  let signedJwt = jwt.sign(signedJwtPayload, privateKey, { algorithm: 'RS256' });
+  let signedJwt = createClientCredentialJwt();
   let url = `${process.env.OKTA_ORG_URL}/oauth2/v1/token`;
   let body = {
     "grant_type": "client_credentials",
@@ -159,11 +143,20 @@ function getOktaAPIOAuthToken(scopes, callBack) {
   });
 }
 
+function createClientCredentialJwt() {
+  let signedJwtPayload = {
+    "aud": `${process.env.OKTA_ORG_URL}/oauth2/v1/token`,
+    "iss": process.env.OKTA_API_CLIENT_ID,
+    "sub": process.env.OKTA_API_CLIENT_ID,
+    "exp": Math.floor(Date.now() / 1000) + (60 * 60)
+  }
+  let privateKey = process.env.JWT_PRIVATE_KEY.replace(/\\n/g, '\n');
+  let signedJwt = jwt.sign(signedJwtPayload, privateKey, { algorithm: 'RS256' });
+  return signedJwt;
+}
+
 function httpCaller(url, method, body, headers, callback) {
   console.log("httpCaller()", url);
-  //console.log("body", body);
-  //console.log("headers", headers);
-
   const httpRequest = new XMLHttpRequest();
   httpRequest.open(method, url);
 
