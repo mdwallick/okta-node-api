@@ -27,10 +27,10 @@ function callAPI(url, method, body, accessToken, callback) {
 }
 
 /* All support JS goes here */
-function sendEmailOTP(userId) {
+function sendEmailOTP(username) {
   console.log("sendEmailOTP()");
   let body = {
-    "userId": userId
+    "username": username
   }
   callAPI('/send-email-challenge', "POST", body, null, (json) => {
     console.log(JSON.parse(json));
@@ -134,6 +134,7 @@ function showLoggedInStuff() {
       if (role == "ADMIN") {
         getOktaApiToken();
         $("#showUserListTabBtn").show();
+        $("#showApiAccessTokenTabBtn").show();
       }
     })
     .catch(function(err) {
