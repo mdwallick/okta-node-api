@@ -1,11 +1,19 @@
 {
   "name": "okta-node-api",
-  "version": "0.0.1",
-  "private": true,
+  "version": "1.0.0",
+  "description": "A simple Javascript front end and node back end integrated with Okta. Features include Okta API access using OAuth for Okta, backend API protection, and a custom, branded email OTP authenticator.",
+  "homepage": "https://github.com/mdwallick/okta-node-api",
+  "bugs": {
+    "url": "https://github.com/mdwallick/okta-node-api/issues",
+    "email": "mike@wallick.net"
+  },
+  "license": "MIT",
   "scripts": {
-    "start": "npm-run-all --parallel watch:server start:web",
+    "start": "node src/server/inxex.js",
+    "startall": "npm-run-all --parallel watch:server start:web",
     "watch:server": "nodemon -r dotenv/config --watch src/server src/server",
-    "start:web": "http-server -p 8080"
+    "start:web": "http-server -p 8080",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
     "@okta/jwt-verifier": "2.3.0",
@@ -15,7 +23,6 @@
     "jsonwebtoken": "^8.5.1",
     "query-string": "^7.1.1",
     "totp-generator": "^0.0.13",
-    "uuid": "^8.3.2",
     "xhr2": "^0.2.1"
   },
   "devDependencies": {
