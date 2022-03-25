@@ -29,5 +29,9 @@
     "dotenv": "latest",
     "nodemon": "latest",
     "npm-run-all": "latest"
+  },
+  "engines" : { 
+    "npm" : ">=7.21.0",
+    "node" : ">=16.8.0"
   }
 }
