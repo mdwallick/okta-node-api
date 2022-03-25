@@ -9,10 +9,9 @@ const endpointHandlers = require('./endpointHandlers.js');
 const webHookHandlers = require('./webHookHandlers.js');
 
 const app = express();
+const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
-
-console.log(`Issuer: ${config.ISSUER}`);
 
 app.get('/', (req, res) => {
   res.send('This is the funAuth API');
@@ -36,65 +35,79 @@ app.post('/api/access-hook', (req, res) => {
 
 app.post('/api/send-email-challenge', (req, res) => {
   console.log("/api/send-email-challenge");
-  res.setHeader('Content-Type', 'application/json');
-
-  let userId = req.body.userId;
-  console.log("Getting userId", userId);
-  getUser(userId, (response) => {
-    let user = JSON.parse(response);
-    //console.log(user);
-    let user_name = user.profile.login;
-    let shared_secret = user.profile.otp_shared_secret;
-    // send the email OTP via Sendgrid
-    sendEmail(user_name, shared_secret, (response) => {
-      //console.log(response);
-      res.end(JSON.stringify(response));
-    });
+  let username = req.body.username;
+  sendOTPEmail(username, (response) => {
+    //console.log(response);
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify(response));
   });
 });
 
-const port = process.env.PORT || 3000;
+app.post('/api/activate-user', (req, res) => {
+  console.log('/api/activate-user');
+  let user_id = req.body.user_id;
+  let body = {
+    user_id: user_id,
+    template_id: process.env.ACTIVATION_TEMPLATE_ID
+  }
+  let workflowId = process.env.OKTA_WORKFLOW_ACTIVATE_USER_ID;
+  let workflowToken = process.env.OKTA_WORKFLOW_ACTIVATE_USER_CLIENT_TOKEN;
+  callOktaWorkflow(workflowId, workflowToken, body, (response) => {
+    console.log(response);
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify(response));
+  });
+});
+
+app.post('/api/forgot-password', (req, res) => {
+  console.log('/api/forgot-password');
+  let user_name = req.body.user_name;
+  let body = {
+    user_name: user_name,
+    template_id: process.env.SSPR_TEMPLATE_ID
+  }
+  let workflowId = process.env.OKTA_WORKFLOW_SSPR_ID;
+  let workflowToken = process.env.OKTA_WORKFLOW_SSPR_CLIENT_TOKEN;
+  callOktaWorkflow(workflowId, workflowToken, body, (response) => {
+    console.log(response);
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify(response));
+  });
+});
+
 app.listen(port, () => console.log(`funAuth app listening on port ${port}!`));
 
 //////////////////////
 // helper functions //
 //////////////////////
-function sendEmail(user_name, shared_secret, callback) {
-  const mailer = require('@sendgrid/mail');
-  mailer.setApiKey(config.SENDGRID_API_KEY);
-
-  let token = generateOTP(shared_secret);
-  let msg = {
-    from: `noreply@${config.SENDGRID_FROM_DOMAIN}`,
-    template_id: config.SENDGRID_TEMPLATE_ID,
-    personalizations: [{
-      to: { email: user_name },
-      dynamic_template_data: {
-        verificationToken: token
-      }
-    }]
+function sendOTPEmail(email, callback) {
+  console.log("sendOTPEmail()");
+  let template_id = 'd-970d1b91266140f998302b2dd260faef'; // default to thorax.studio brand
+  if (email == 'gordon.sumner@mailinator.com') {
+    template_id = 'd-0c6a0785b3b548a5a5ece75856dfb961'; // Anthem template
+  } else if (email == 'andy.summers@mailinator.com') {
+    template_id = 'd-261b61f7d890439fb610a7ea41f05905'; // Unicare template
+  }
+  let url = `${process.env.AWS_API_BASE}/send-otp-email`;
+  let body = {
+    "email": email,
+    "template_id": template_id
   };
-
-  mailer.send(msg).then((response) => {
-      console.log(response[0].statusCode);
-      console.log(response[0].headers);
-      callback(response);
-    })
-    .catch((err) => {
-      console.log(err);
-    });
-}
-
-function generateOTP(shared_secret) {
-  let totp = require("totp-generator");
-  let params = { algorithm: "SHA-512", period: 30 };
-  let token = totp(shared_secret, params);
-  return token;
+  console.log('url', url);
+  console.log('body', body);
+  console.log('headers', AWS_API_HEADERS);
+  httpCaller(url, "POST", JSON.stringify(body), AWS_API_HEADERS, callback);
 }
 
 /////////////////////////////////////
 // Okta API stuff, not user-scoped //
 /////////////////////////////////////
+const AWS_API_HEADERS = [
+  { "key": "Content-type", "value": "application/json" },
+  { "key": "Accept", "value": "application/json" },
+  { "key": "x-api-key", "value": process.env.AWS_API_KEY },
+];
+
 const OKTA_API_HEADERS = [
   { "key": "Content-Type", "value": "application/json" },
   { "key": "Accept", "value": "application/json" },
@@ -104,6 +117,12 @@ const OKTA_API_HEADERS = [
 const OKTA_OAUTH_HEADERS = [
   { "key": "Content-Type", "value": "application/x-www-form-urlencoded" },
   { "key": "Accept", "value": "application/json" }
+];
+
+const OKTA_WORKFLOWS_HEADERS = [
+  { "key": "Content-Type", "value": "application/json" },
+  { "key": "Accept", "value": "application/json" },
+  { "key": "x-api-client-token", "value": "" }
 ];
 
 function getUser(userId, callback) {
@@ -120,6 +139,17 @@ function callOktaAPI(url, method, body, callback) {
     OKTA_API_HEADERS[2].value = `Bearer ${oAuthResponse}`;
     httpCaller(url, method, body, OKTA_API_HEADERS, callback);
   });
+}
+
+function callOktaWorkflow(flowId, workflowClientToken, body, callback) {
+  console.log("callOktaWorkflow");
+  console.log("flowId", flowId);
+  console.log("workflowClientToken", workflowClientToken);
+  console.log("body", body);
+
+  OKTA_WORKFLOWS_HEADERS[2].value = workflowClientToken;
+  let url = `${process.env.OKTA_WORKFLOW_URL}/api/flo/${flowId}/invoke`;
+  httpCaller(url, "POST", JSON.stringify(body), OKTA_WORKFLOWS_HEADERS, callback);
 }
 
 // May want to adjust this to cache the token and refresh it when expired...
@@ -156,7 +186,7 @@ function createClientCredentialJwt() {
 }
 
 function httpCaller(url, method, body, headers, callback) {
-  console.log("httpCaller()", url);
+  //console.log("httpCaller()", url);
   const httpRequest = new XMLHttpRequest();
   httpRequest.open(method, url);
 
