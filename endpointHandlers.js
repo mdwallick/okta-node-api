@@ -1,8 +1,7 @@
-const config = require('./config.js');
 const OktaJwtVerifier = require('@okta/jwt-verifier');
 
 const oktaJwtVerifier = new OktaJwtVerifier({
-  issuer: config.ISSUER
+  issuer: process.env.ISSUER
 });
 
 module.exports = {
@@ -36,7 +35,7 @@ module.exports = {
       accessTokenString = auth.replace("Bearer ", "");
     }
 
-    oktaJwtVerifier.verifyAccessToken(accessTokenString, config.AUDIENCE)
+    oktaJwtVerifier.verifyAccessToken(accessTokenString, process.env.AUDIENCE)
       .then(jwt => {
         // the token is valid (per definition of 'valid' above)
         console.log(jwt.claims);
@@ -76,7 +75,7 @@ module.exports = {
       accessTokenString = auth.replace("Bearer ", "");
     }
 
-    oktaJwtVerifier.verifyAccessToken(accessTokenString, config.AUDIENCE)
+    oktaJwtVerifier.verifyAccessToken(accessTokenString, process.env.AUDIENCE)
       .then(jwt => {
         // the token is valid (per definition of 'valid' above)
         console.log(jwt.claims);

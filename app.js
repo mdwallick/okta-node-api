@@ -4,9 +4,7 @@ const jwt = require('jsonwebtoken');
 const queryString = require('query-string');
 const XMLHttpRequest = require("xhr2").XMLHttpRequest;
 
-const config = require('./config.js');
 const endpointHandlers = require('./endpointHandlers.js');
-const webHookHandlers = require('./webHookHandlers.js');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -30,7 +28,39 @@ app.get('/api/access', (req, res) => {
 });
 
 app.post('/api/access-hook', (req, res) => {
-  webHookHandlers.tokenHandler(req, res);
+  //console.log("auth: " + auth + " config.OKTA_HOOK_AUTH: " + config.OKTA_HOOK_AUTH);
+  let auth = req.get("Authorization");
+  let results = {}
+
+  if (auth == process.env.OKTA_HOOK_AUTH) {
+    results = {
+      "commands": [{
+          "type": "com.okta.identity.patch",
+          "value": [{
+            "op": "add",
+            "path": "/claims/account_number",
+            "value": "F0" + between(1000, 9999) + "-" + between(1000, 9999)
+          }]
+        },
+        {
+          "type": "com.okta.access.patch",
+          "value": [{
+            "op": "add",
+            "path": "/claims/access",
+            "value": "GRANTED"
+          }]
+        }
+      ]
+    };
+  } else {
+    results = {
+      "success": false,
+      "message": "Requires Auth to call this hook."
+    }
+    res.status(403);
+  }
+  res.setHeader("Content-Type", "application/json");
+  res.end(JSON.stringify(results));
 });
 
 app.post('/api/send-email-challenge', (req, res) => {
@@ -80,6 +110,12 @@ app.listen(port, () => console.log(`funAuth app listening on port ${port}!`));
 //////////////////////
 // helper functions //
 //////////////////////
+function between(minimum, maximum) {
+  return Math.floor(
+    Math.random() * (maximum - minimum) + minimum
+  )
+}
+
 function sendOTPEmail(email, callback) {
   console.log("sendOTPEmail()");
   let template_id = 'd-970d1b91266140f998302b2dd260faef'; // default to thorax.studio brand
