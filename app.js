@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const queryString = require('query-string');
 const XMLHttpRequest = require("xhr2").XMLHttpRequest;
 
-const config = require('../../config.js');
+const config = require('./config.js');
 const endpointHandlers = require('./endpointHandlers.js');
 const webHookHandlers = require('./webHookHandlers.js');
 

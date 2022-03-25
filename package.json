@@ -9,9 +9,9 @@
   },
   "license": "MIT",
   "scripts": {
-    "start": "node src/server/index.js",
+    "start": "node app.js",
     "startall": "npm-run-all --parallel watch:server start:web",
-    "watch:server": "nodemon -r dotenv/config --watch src/server src/server",
+    "watch:server": "nodemon -r dotenv/config --watch . app.js",
     "start:web": "http-server -p 8080",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

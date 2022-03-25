@@ -1,4 +1,4 @@
-const config = require('../../config.js');
+const config = require('./config.js');
 
 function between(minimum, maximum) {
   return Math.floor(
