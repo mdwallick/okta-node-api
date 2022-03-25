@@ -73,15 +73,6 @@ resource "okta_auth_server_policy_rule" "funauth_policy_rule" {
   grant_type_whitelist = ["authorization_code", "interaction_code"]
   scope_whitelist      = ["*"]
 }
-resource "okta_user_schema" "customfield1" {
-  index       = "otp_shared_secret"
-  title       = "Email OTP Shared Secret"
-  type        = "string"
-  description = "Shared secret storage"
-  master      = "OKTA"
-  scope       = "SELF"
-  permissions = "HIDE"
-}
 output "client_id" {
   value = "${okta_app_oauth.funauth_oidc.client_id}"
 }
