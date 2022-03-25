@@ -9,7 +9,7 @@
   },
   "license": "MIT",
   "scripts": {
-    "start": "node src/server/inxex.js",
+    "start": "node src/server/index.js",
     "startall": "npm-run-all --parallel watch:server start:web",
     "watch:server": "nodemon -r dotenv/config --watch src/server src/server",
     "start:web": "http-server -p 8080",
