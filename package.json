@@ -10,9 +10,7 @@
   "license": "MIT",
   "scripts": {
     "start": "node app.js",
-    "startall": "npm-run-all --parallel watch:server start:web",
-    "watch:server": "nodemon -r dotenv/config --watch . app.js",
-    "start:web": "http-server -p 8080",
+    "server": "nodemon -r dotenv/config --watch . app.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
