@@ -1,12 +1,3 @@
-const oktaApiAuthClient = new OktaAuth({
-  issuer: oktaUrl,
-  clientId: clientId,
-  redirectUri: redirectUri,
-  tokenManager: {
-    storage: 'sessionStorage'
-  }
-});
-
 const httpStatus = {
   OK: 200,
   CREATED: 201,
@@ -116,22 +107,55 @@ function changePassword() {
   }
 }
 
+function forgotPassword(user_name) {
+  console.log("forgotPassword()", user_name);
+  showLoader();
+  let body = {
+    user_name: user_name
+  };
+
+  // call the Okta workflow to activate the user
+  callAPI('/forgot-password', 'POST', body, null, (response) => {
+    console.log(response);
+    hideLoader();
+  });
+}
+
 function activateUser() {
   let user_id = $(this).data('id');
   console.log("activateUser()", user_id);
   showLoader();
-  callOktaAPI(`/users/${user_id}/lifecycle/activate?sendEmail=true`, "POST", null, (response) => {
-    console.log("Activated user", response);
+  let body = {
+    user_id: user_id
+  };
+
+  // call the Okta workflow to activate the user
+  callAPI('/activate-user', 'POST', body, null, (response) => {
+    console.log(response);
     loadUserList();
     hideLoader();
   });
+
+  // callOktaAPI(`/users/${user_id}/lifecycle/activate?sendEmail=false`, "POST", null, (response) => {
+  //   console.log("Activated user", response);
+  //   // TODO grab the activation token and send it to the backend to get an email sent
+  //   let body = {
+  //     email: null,
+  //     token: response.activationToken
+  //   }
+  //   callAPI('/send-activation-email', 'POST', JSON.stringify(body), null, (response) => {
+  //     console.log(response);
+  //   });
+  //   loadUserList();
+  //   hideLoader();
+  // });
 }
 
 function resetPassword() {
   let user_id = $(this).data('id');
   console.log("resetPassword()", user_id);
   showLoader();
-  callOktaAPI(`/users/${user_id}/lifecycle/reset_password?sendEmail=true`, "POST", null, (response) => {
+  callOktaAPI(`/users/${user_id}/lifecycle/reset_password?sendEmail=false`, "POST", null, (response) => {
     console.log(response);
     loadUserList();
     hideLoader();
@@ -413,10 +437,10 @@ function handleError(response, status) {
 function getOktaApiToken() {
   console.log("getOktaApiToken()");
   // use the oktaApiAuthClient to get an Okta API OAuth token for the current user
-  signIn.authClient.session.get()
-    .then(function(session) {
+  signIn.authClient.session.exists()
+    .then(function(exists) {
       // session exists
-      if (session.status == "ACTIVE") {
+      if (exists) {
         oktaApiAuthClient.token.getWithoutPrompt({
             responseType: ['token'],
             scopes: okta_api_scopes
@@ -424,12 +448,14 @@ function getOktaApiToken() {
             var tokens = res.tokens;
             // Do something with tokens, such as
             oktaApiAuthClient.tokenManager.setTokens(tokens);
-            //console.log("API access token", tokens.accessToken);
+            console.log("API access token", tokens.accessToken);
             showApiAccessToken(tokens.accessToken.accessToken);
           })
           .catch(function(err) {
             console.log(err);
           })
+      } else {
+        console.log("I'm logged in, but my session is not active?");
       }
     });
 }
