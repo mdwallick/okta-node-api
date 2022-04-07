@@ -190,7 +190,18 @@ app.post('/api/forgot-password', (req, res) => {
   });
 });
 
-app.listen(port, () => console.log(`funAuth app listening on port ${port}!`));
+app.get('/api/user-idps/:username', (req, res) => {
+  console.log('/api/user-idps');
+  let user_name = req.params.username;
+  getUser(user_name, (response) => {
+    res.setHeader('Content-Type', 'application/json');
+    let user = JSON.parse(response);
+    let idp_ids = user.profile.user_idps || [];
+    res.end(JSON.stringify(idp_ids));
+  });
+});
+
+app.listen(port, () => console.log(`funAuth app listening on port ${port}! ${process.env.OKTA_ORG_URL}`));
 
 //////////////////////
 // helper functions //
@@ -235,6 +246,12 @@ const OKTA_API_HEADERS = [
   { "key": "Authorization", "value": "Bearer " }
 ];
 
+const OKTA_STANDARD_HEADERS = [
+  {"key": "Content-Type", "value": "application/json"},
+  {"key": "Accept", "value": "application/json"},
+  {"key": "Authorization", "value": `SSWS ${process.env.OKTA_API_KEY}`}
+];
+
 const OKTA_OAUTH_HEADERS = [
   { "key": "Content-Type", "value": "application/x-www-form-urlencoded" },
   { "key": "Accept", "value": "application/json" }
@@ -249,8 +266,19 @@ const OKTA_WORKFLOWS_HEADERS = [
 function getUser(userId, callback) {
   console.log("getUser()");
   let okta_url = process.env.OKTA_ORG_URL;
+  console.log(okta_url);
   let url = `${okta_url}/api/v1/users/${userId}`;
-  callOktaAPI(url, "GET", null, callback);
+  callAnonymousOktaAPI(url, "GET", null, callback);
+}
+
+function callAnonymousOktaAPI(url, method, body, callback) {
+  console.log("callAnonymousOktaAPI()", url);
+  httpCaller(url, method, body, OKTA_STANDARD_HEADERS, callback);
+  // let scopes = 'okta.users.read okta.apps.read';
+  // getOktaAPIOAuthToken(scopes, (oAuthResponse) => {
+  //   OKTA_API_HEADERS[2].value = `Bearer ${oAuthResponse}`;
+  //   httpCaller(url, method, body, OKTA_API_HEADERS, callback);
+  // });
 }
 
 function callOktaAPI(url, method, body, callback) {
